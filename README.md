@@ -8,6 +8,7 @@ rate card in Adobe InDesign.
 | File | Purpose |
 | --- | --- |
 | `scripts/RateCardBuilder.jsx` | Builds a complete, styled, print-ready rate card document from a CSV file (or embedded sample data). |
+| `scripts/PreflightAuditor.jsx` | Read-only preflight/style audit of the active document — reports issues before handoff. |
 | `data/rates-sample.csv` | Sample rates file showing the expected columns. |
 
 ## Running the script
@@ -46,6 +47,27 @@ All the knobs are in the `CONFIG` object at the top of the script:
 company name, tagline, currency prefix (`"K "`, `"$"`, …), page size
 (A4/Letter), margins, fonts, and CMYK brand colours.
 
+## Preflight / style auditor
+
+`scripts/PreflightAuditor.jsx` audits the **active** document without
+changing anything, and reports:
+
+- Overset text (with page and a snippet of the affected story)
+- Missing, substituted, or fauxed fonts
+- Missing or out-of-date links
+- Raster images below the effective-PPI threshold (default 250 ppi)
+- RGB/Lab images in a print job
+- Off-brand swatches — both *defined* in the swatches panel and actually
+  *used* as fills/strokes (approved list in `CONFIG.approvedSwatches`)
+- Style hygiene: paragraphs with local formatting overrides, and text
+  still on `[No Paragraph Style]`/`[Basic Paragraph]`
+- Items stranded on the pasteboard
+
+Results open in a scrollable window with a **Save Report…** button that
+writes a timestamped `.txt` next to the document. Thresholds, the approved
+swatch list, and the (slower) override scan are configurable in the
+`CONFIG` block at the top.
+
 ## Other scripts this toolkit can grow to include
 
 Ideas for further InDesign automation — open an issue or ask for any of these:
@@ -56,8 +78,6 @@ Ideas for further InDesign automation — open an issue or ask for any of these:
   (low-res, RGB) PDFs of every open document in one click.
 - **Data merge on steroids** — generate one personalised rate card per
   client from a spreadsheet (names, discount tiers, selected categories).
-- **Style auditor / preflight** — flag overset text, missing fonts, local
-  formatting overrides, and off-brand colours before handoff.
 - **Image relinker** — repoint all links from a local folder to a shared
   drive (or vice versa) and relink lo-res to hi-res versions.
 - **Price table importer** — refresh an existing tagged table in place from
