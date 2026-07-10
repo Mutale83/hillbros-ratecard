@@ -1,0 +1,11 @@
+Category,Item,Description,Unit,Rate
+Print Advertising,Full Page,"Full colour, run of paper",per insertion,4500
+Print Advertising,Half Page,"Full colour, run of paper",per insertion,2600
+Print Advertising,Quarter Page,"Full colour, run of paper",per insertion,1500
+Print Advertising,Front Page Strip,"Full colour, premium position",per insertion,3200
+Digital,Website Banner,"Leaderboard 728x90, all pages",per week,800
+Digital,Social Media Post,"Sponsored post, all platforms",per post,350
+Digital,Newsletter Feature,Featured slot in weekly mailer,per issue,600
+Production Services,Design & Artwork,Ad design by in-house studio,per hour,250
+Production Services,Photography,"On-location shoot, half day",per session,1200
+Production Services,Copywriting,Ad or advertorial copy,per 300 words,400
