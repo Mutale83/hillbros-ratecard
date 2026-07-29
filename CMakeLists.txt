@@ -79,6 +79,19 @@ target_compile_definitions(VoxAI PUBLIC
     JUCE_DISPLAY_SPLASH_SCREEN=0
 )
 
+# ---------------------------------------------------------------------------
+# Optional: RNNoise neural denoiser (see cmake/rnnoise.cmake and
+# Source/ai/NeuralDenoiser). OFF by default so the base build has no extra
+# dependencies and no network requirement beyond JUCE.
+# ---------------------------------------------------------------------------
+option(VOX_ENABLE_RNNOISE "Build with the RNNoise neural denoiser" OFF)
+if(VOX_ENABLE_RNNOISE)
+    include(${CMAKE_CURRENT_LIST_DIR}/cmake/rnnoise.cmake)
+    target_link_libraries(VoxAI PRIVATE rnnoise)
+    target_compile_definitions(VoxAI PRIVATE VOX_HAVE_RNNOISE=1)
+    message(STATUS "VoxAI: RNNoise neural denoiser ENABLED")
+endif()
+
 target_link_libraries(VoxAI PRIVATE
     juce::juce_audio_utils
     juce::juce_dsp

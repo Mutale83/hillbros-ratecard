@@ -31,12 +31,27 @@ feasibility doc), plus an **honest integration seam for Phase 3 (AI)**:
 | De-esser (split-band sidechain) | ✅ |
 | Latency-compensated dry/wet + I/O gain | ✅ |
 | Dark professional UI, meters, real-time spectrum | ✅ |
-| Neural denoiser (RNNoise / ONNX) | 🧩 Seam + fallback — see `Source/ai/NeuralDenoiser.h` |
+| **Neural denoiser (RNNoise)** | ✅ Opt-in: `-DVOX_ENABLE_RNNOISE=ON` (engages at 48 kHz) |
 
 The plugin does **not** label classic DSP as "AI". The `Denoise` control drives a
-genuine spectral denoiser; the `Neural NR` toggle is wired to an integration seam
-that currently falls back to that same classic engine until a real model is
-dropped in (the header documents exactly how).
+genuine spectral denoiser. The `Neural NR` toggle engages **RNNoise** (a real
+neural network) when the plugin is built with `-DVOX_ENABLE_RNNOISE=ON` and the
+session runs at 48 kHz; otherwise it transparently falls back to the classic
+spectral engine. So the AI claim is truthful when — and only when — a real model
+is running. See `Source/ai/NeuralDenoiser.h`.
+
+### Enabling the neural denoiser
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DVOX_ENABLE_RNNOISE=ON
+cmake --build build --config Release
+```
+
+This fetches [xiph/rnnoise](https://github.com/xiph/rnnoise) (BSD) and compiles it
+in. It is **off by default** so the base build has no extra dependencies. RNNoise
+runs at 48 kHz on 480-sample frames; the plugin engages it only at that session
+rate and reports a constant latency across both engines. Sample-rate conversion so
+neural mode works at any rate is a documented follow-up (`docs/ARCHITECTURE.md`).
 
 ---
 
@@ -78,7 +93,9 @@ Source/
     DeEsser.*             split-band sibilance control
     SpectralDenoiser.*    STFT overlap-add spectral subtraction
   ai/
-    NeuralDenoiser.*      integration seam for RNNoise / ONNX (documented)
+    NeuralDenoiser.*      RNNoise neural denoiser (opt-in) + classic fallback
+cmake/
+  rnnoise.cmake           optional RNNoise fetch/build (VOX_ENABLE_RNNOISE)
   gui/
     VoxLookAndFeel.*      dark theme
     LevelMeter.*          lock-free peak meter
@@ -90,8 +107,10 @@ docs/
 
 ## Roadmap
 
-See `docs/FEASIBILITY.md §7`. Next highest-value step: integrate **RNNoise**
-behind the existing `NeuralDenoiser` seam to make the AI claim truthful.
+See `docs/FEASIBILITY.md §7`. Phase 3 has begun: **RNNoise** is integrated behind
+`-DVOX_ENABLE_RNNOISE`. Next steps: sample-rate conversion so neural mode runs at
+any session rate, and an optional offline "AI render" path using a larger ONNX
+model (RX-class quality without the real-time constraint).
 
 ## License
 

@@ -196,11 +196,14 @@ but that's a different, non-real-time code path.
 `Phase 2 classic spectral NR (done)` → `drop in RNNoise (weekend)` → `optionally ONNX +
 DeepFilterNet (weeks)` → `offline "AI render" path with a bigger model (later)`.
 
-This repo includes `Source/ai/NeuralDenoiser.*` as a **clean integration seam**: a
-real interface with a working classic-DSP fallback, and commented hooks showing exactly
-where RNNoise/ONNX plug in. It does **not** ship a fake "AI" that's secretly just EQ —
-the AI slider currently drives the *real* spectral denoiser, and the seam is honest about
-what's classic vs. neural.
+This repo **integrates RNNoise** in `Source/ai/NeuralDenoiser.*` behind the CMake
+option `-DVOX_ENABLE_RNNOISE=ON` (verified to build and link — see `cmake/rnnoise.cmake`).
+When enabled and the session is 48 kHz, the `Neural NR` toggle runs the real RNNoise
+network; otherwise it transparently falls back to the classic spectral denoiser. It does
+**not** ship a fake "AI" that's secretly just EQ — the AI claim is truthful exactly when a
+real model is running, and the fallback is honest about what's classic vs. neural.
+Remaining work on this path: sample-rate conversion so neural mode runs at any rate, and
+(optionally) an ONNX + DeepFilterNet path for higher quality.
 
 ---
 
@@ -234,7 +237,7 @@ what's classic vs. neural.
 |---|---|---|
 | **1** | Buildable VST3/AU shell (JUCE + CMake), params, state, UI | ✅ Implemented |
 | **2** | DSP: EQ, compression, gate, (classic) noise reduction, de-esser | ✅ Implemented |
-| **3** | Integrate pre-trained neural denoiser (ONNX/RNNoise) | 🧩 Seam + fallback in `Source/ai/` |
+| **3** | Integrate pre-trained neural denoiser (ONNX/RNNoise) | ✅ RNNoise integrated (opt-in `-DVOX_ENABLE_RNNOISE`, 48 kHz); ONNX/any-rate = follow-up |
 | **4** | Latency/CPU optimization, SIMD, denormals, block-size tuning | 🟡 Foundations laid; see `docs/ARCHITECTURE.md` |
 | **5** | Installer, licensing, signing, packaging, CI | 🟡 CMake + CI notes provided |
 

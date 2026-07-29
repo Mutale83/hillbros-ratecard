@@ -1,76 +1,70 @@
 #pragma once
 
 #include "../dsp/SpectralDenoiser.h"
+#include <vector>
 
 namespace vox::ai
 {
     /**
-        Integration seam for a neural noise-suppression model.
+        Neural noise suppression via RNNoise, with an honest classic fallback.
 
-        RIGHT NOW this class is an honest facade: when "neural" mode is off it
-        forwards to the classic spectral denoiser, and when "neural" mode is on
-        it *still* uses the classic denoiser but flags (via isNeuralActive) that
-        no model is loaded. Nothing here pretends EQ is AI.
+        Build-time gate: define VOX_HAVE_RNNOISE (CMake option VOX_ENABLE_RNNOISE)
+        to link the RNNoise library. Without it this class always uses the
+        classic spectral denoiser, and toggling "Neural NR" simply keeps using
+        that engine — nothing here pretends EQ or classic DSP is AI.
 
-        TO MAKE THE AI CLAIM REAL, integrate one of the following behind this
-        interface — the surrounding plugin needs no other changes:
-
-          1) RNNoise (fastest path)
-             - Add the rnnoise C sources to the build.
-             - In prepare(): rnnoise_create(nullptr) -> DenoiseState*.
-             - RNNoise works on 480-sample frames of 48 kHz float scaled to
-               int16 range. Buffer/resample to that frame size, call
-               rnnoise_process_frame(st, out, in) per frame, overlap into the
-               block. Set modelLoaded = true.
-
-          2) ONNX Runtime + DeepFilterNet / DTLN (higher quality)
-             - Link onnxruntime (CPU EP, static). Create Ort::Session from the
-               exported .onnx in prepare().
-             - Feed the model its expected feature frames (usually STFT
-               magnitude/complex); apply the predicted mask; inverse-STFT.
-               The SpectralDenoiser's STFT plumbing is a ready template — you
-               replace only the per-bin gain computation with the model's mask.
-
-        Real-time notes: keep inference on the audio thread only if it fits the
-        CPU budget at the host block size; otherwise run it in a bounded worker
-        with a lock-free ring and report the added latency. Do NOT use a GPU
-        execution provider for the real-time path (see docs/FEASIBILITY.md §5).
+        Runtime engagement (when built with RNNoise):
+          * RNNoise runs at its native 48 kHz on fixed frames (frame size from
+            rnnoise_get_frame_size(), 480 samples). We therefore engage the
+            neural path only when the host session is 48 kHz; at other rates we
+            fall back to the classic denoiser. (Adding sample-rate conversion so
+            neural mode works at any rate is a documented follow-up — see
+            docs/ARCHITECTURE.md.)
+          * One RNNoise state per channel. Input is scaled to int16 range for the
+            model and back on output.
+          * The neural path's framing latency is padded to exactly match the
+            classic STFT latency, so getLatencySamples() is constant regardless
+            of which engine is active and host delay compensation stays stable.
     */
     class NeuralDenoiser
     {
     public:
-        void prepare (double sampleRate, int numChannels, int maxBlock)
-        {
-            classic.prepare (sampleRate, numChannels, maxBlock);
-            // TODO(ai): load RNNoise / ONNX session here and set modelLoaded.
-        }
+        NeuralDenoiser() = default;
+        ~NeuralDenoiser();
 
-        void reset() { classic.reset(); }
+        void prepare (double sampleRate, int numChannels, int maxBlock);
+        void reset();
 
-        void setAmount (float amount01) { classic.setAmount (amount01); }
+        void setAmount (float amount01);
         void setUseNeural (bool shouldUseNeural) { useNeural = shouldUseNeural; }
 
-        /** True only when neural mode is requested AND a model is actually loaded. */
-        bool isNeuralActive() const { return useNeural && modelLoaded; }
+        /** True only when neural mode is requested AND a model is actually running. */
+        bool isNeuralActive() const { return useNeural && neuralReady; }
 
+        /** Constant across engines so host PDC never has to change. */
         int getLatencySamples() const { return classic.getLatencySamples(); }
 
-        void process (juce::AudioBuffer<float>& block)
-        {
-            if (isNeuralActive())
-            {
-                // TODO(ai): run neural inference here instead of the classic path.
-                classic.process (block);
-            }
-            else
-            {
-                classic.process (block);
-            }
-        }
+        void process (juce::AudioBuffer<float>& block);
 
     private:
+        void processNeural (juce::AudioBuffer<float>& block);
+        void destroyStates();
+
         vox::dsp::SpectralDenoiser classic;
-        bool useNeural = false;
-        bool modelLoaded = false;   // flips true once a real model is integrated
+        bool  useNeural   = false;
+        bool  neuralReady = false;    // true only when RNNoise is built, created, and sr == 48k
+        float amount = 0.f;
+        int   frameSize = 480;
+
+        struct NChan
+        {
+            void* state = nullptr;          // rnnoise DenoiseState* (opaque here)
+            std::vector<float> inFrame;     // collects frameSize input samples
+            std::vector<float> outFrame;    // rnnoise output scratch
+            int   fill = 0;
+            std::vector<float> outRing;      // latency-matched output ring
+            int   outW = 0, outR = 0, outCount = 0;
+        };
+        std::vector<NChan> nchans;
     };
 }

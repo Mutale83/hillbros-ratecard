@@ -82,7 +82,7 @@ VoxAIAudioProcessorEditor::Knob& VoxAIAudioProcessorEditor::addKnob (const juce:
     k->label.setText (name, juce::dontSendNotification);
     k->label.setJustificationType (juce::Justification::centred);
     k->label.setColour (juce::Label::textColourId, LnF::textDim);
-    k->label.setFont (juce::Font (11.f, juce::Font::bold));
+    k->label.setFont (juce::Font (juce::FontOptions (11.f).withStyle ("Bold")));
     addAndMakeVisible (k->label);
 
     k->attach = std::make_unique<SliderAttach> (proc.apvts, paramID, k->slider);
@@ -144,10 +144,10 @@ void VoxAIAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour (LnF::panel);
     g.fillRect (header);
     g.setColour (LnF::accent);
-    g.setFont (juce::Font (20.f, juce::Font::bold));
+    g.setFont (juce::Font (juce::FontOptions (20.f).withStyle ("Bold")));
     g.drawText ("VoxAI", header.reduced (14, 0), juce::Justification::centredLeft);
     g.setColour (LnF::textDim);
-    g.setFont (juce::Font (11.f));
+    g.setFont (juce::Font (juce::FontOptions (11.f)));
     g.drawText ("AI Voice Channel Strip", header.reduced (90, 0), juce::Justification::centredLeft);
 }
 

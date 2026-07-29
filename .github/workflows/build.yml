@@ -13,6 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ windows-latest, macos-latest ]
+        rnnoise: [ "OFF", "ON" ]
 
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +23,7 @@ jobs:
         run: echo "Xcode toolchain provides everything needed"
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DVOX_ENABLE_RNNOISE=${{ matrix.rnnoise }}
 
       - name: Build
         run: cmake --build build --config Release --parallel
@@ -30,7 +31,7 @@ jobs:
       - name: Upload artefacts
         uses: actions/upload-artifact@v4
         with:
-          name: VoxAI-${{ matrix.os }}
+          name: VoxAI-${{ matrix.os }}-rnnoise-${{ matrix.rnnoise }}
           path: |
             build/**/*.vst3
             build/**/*.component

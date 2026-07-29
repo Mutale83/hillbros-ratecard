@@ -89,7 +89,7 @@ namespace vox::gui
     juce::Label* VoxLookAndFeel::createSliderTextBox (juce::Slider& s)
     {
         auto* l = LookAndFeel_V4::createSliderTextBox (s);
-        l->setFont (juce::Font (12.f));
+        l->setFont (juce::Font (juce::FontOptions (12.f)));
         l->setJustificationType (juce::Justification::centred);
         return l;
     }

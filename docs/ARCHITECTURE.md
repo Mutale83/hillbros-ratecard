@@ -69,10 +69,30 @@ Standard weighted-overlap-add:
   musical noise.
 - Hermitian symmetry is maintained before the inverse transform.
 
-**This is also the AI seam.** To go neural, replace only the per-bin *gain*
-computation in `processFrame()` with a model-predicted mask (DeepFilterNet/DTLN
-via ONNX), or bypass the STFT entirely and call RNNoise on its native 480-sample
-frames. See `Source/ai/NeuralDenoiser.h` for the step-by-step.
+## The neural denoiser (`NeuralDenoiser`, RNNoise)
+
+Built in when `-DVOX_ENABLE_RNNOISE=ON` (defines `VOX_HAVE_RNNOISE`). Design:
+
+- One `DenoiseState` per channel (`rnnoise_create`). Input is scaled to int16
+  range for the model and back on output; the `Denoise` amount blends dry→wet
+  per sample so the control still sweeps continuously.
+- RNNoise is **48 kHz / 480-sample-frame only**, so the neural path engages only
+  when the session runs at 48 kHz (`neuralReady`); at any other rate, or when
+  RNNoise isn't compiled in, `process()` falls back to the classic STFT denoiser.
+- **Constant reported latency.** The neural path buffers 480-sample frames
+  (480 samples of latency) and is then padded with a primed output ring so its
+  total latency equals the classic STFT latency. `getLatencySamples()` is
+  therefore identical for both engines, so toggling `Neural NR` never disturbs
+  host plugin-delay compensation.
+- `reset()` uses `rnnoise_init()` (in-place, no allocation) so it's real-time
+  safe; allocation happens only in `prepare()`.
+
+**Follow-ups.** (1) Add streaming sample-rate conversion (e.g. a
+`juce::LagrangeInterpolator` per direction with an input FIFO) so neural mode
+runs at any session rate — the framing/latency machinery already in place stays
+unchanged. (2) For higher quality, swap RNNoise for DeepFilterNet/DTLN via ONNX
+Runtime, reusing the `SpectralDenoiser` STFT plumbing to feed the model its
+magnitude frames and apply the predicted mask. See `Source/ai/NeuralDenoiser.h`.
 
 ## Extending: turning macros into full controls
 
