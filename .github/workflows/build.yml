@@ -1,0 +1,44 @@
+name: Build
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-latest, macos-latest ]
+        rnnoise: [ "OFF", "ON" ]
+        exclude:
+          # RNNoise's CELT sources use C99 variable-length arrays, which MSVC's
+          # C compiler does not support. Neural mode is therefore built on
+          # Linux/macOS (GCC/Clang); Windows ships the classic denoiser.
+          - os: windows-latest
+            rnnoise: "ON"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux-style deps (macOS is fine out of the box)
+        if: runner.os == 'macOS'
+        run: echo "Xcode toolchain provides everything needed"
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DVOX_ENABLE_RNNOISE=${{ matrix.rnnoise }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoxAI-${{ matrix.os }}-rnnoise-${{ matrix.rnnoise }}
+          path: |
+            build/**/*.vst3
+            build/**/*.component
+          if-no-files-found: ignore

@@ -1,0 +1,129 @@
+name: Release
+
+# Cutting a release: push a tag like `v0.1.0` (or run this manually via the
+# Actions tab). Each platform builds, packages a ZIP (always) plus a native
+# installer (best-effort), and uploads them to a DRAFT GitHub Release for that
+# tag. Draft = visible only to repo collaborators until you click Publish, so
+# nothing goes public by accident. Release assets are served from GitHub, which
+# avoids the third-party artifact-storage host that plain CI artifacts use.
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag/version label for a manual draft release (e.g. v0.1.0-test)"
+        required: true
+        default: "v0.0.0-manual"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.os }} (rnnoise ${{ matrix.rnnoise }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rnnoise: "OFF" }   # MSVC can't build RNNoise (C99 VLAs)
+          - { os: macos-latest,   rnnoise: "ON"  }
+          - { os: ubuntu-latest,  rnnoise: "ON"  }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version tag
+        id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Linux deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxcomposite-dev libfreetype6-dev libasound2-dev \
+            libgl1-mesa-dev libcurl4-openssl-dev
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DVOX_ENABLE_RNNOISE=${{ matrix.rnnoise }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      # --- Package: ZIP (always) -----------------------------------------
+      - name: Package ZIP (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = "build/VoxAI_artefacts/Release"
+          $out = "VoxAI-${{ steps.ver.outputs.tag }}-windows-x64"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          Copy-Item -Recurse "$dir/VST3/VoxAI.vst3" $out
+          if (Test-Path "$dir/Standalone/VoxAI.exe") { Copy-Item "$dir/Standalone/VoxAI.exe" $out }
+          Compress-Archive -Path "$out/*" -DestinationPath "$out.zip" -Force
+
+      - name: Package ZIP (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          dir="build/VoxAI_artefacts/Release"
+          out="VoxAI-${{ steps.ver.outputs.tag }}-macos"
+          mkdir -p "$out"
+          cp -R "$dir/VST3/VoxAI.vst3" "$out/" 2>/dev/null || true
+          cp -R "$dir/AU/VoxAI.component" "$out/" 2>/dev/null || true
+          ditto -c -k --keepParent "$out" "$out.zip"
+
+      - name: Package ZIP (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          dir="build/VoxAI_artefacts/Release"
+          out="VoxAI-${{ steps.ver.outputs.tag }}-linux-x64"
+          mkdir -p "$out"
+          cp -R "$dir/VST3/VoxAI.vst3" "$out/" 2>/dev/null || true
+          cp "$dir/Standalone/VoxAI" "$out/VoxAI-standalone" 2>/dev/null || true
+          zip -rq "$out.zip" "$out"
+
+      # --- Package: native installer (best-effort) -----------------------
+      - name: Build macOS .pkg (best-effort, unsigned unless secrets set)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        env:
+          MACOS_INSTALLER_IDENTITY: ${{ secrets.MACOS_INSTALLER_IDENTITY }}
+        run: bash packaging/macos/build_pkg.sh "build/VoxAI_artefacts/Release" "${{ steps.ver.outputs.tag }}"
+
+      - name: Build Windows installer with Inno Setup (best-effort)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DAppVersion=${{ steps.ver.outputs.tag }}" packaging/windows/VoxAI.iss
+
+      # --- Upload everything to a DRAFT release ---------------------------
+      - name: Upload to draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: VoxAI ${{ steps.ver.outputs.tag }}
+          draft: true
+          prerelease: true
+          fail_on_unmatched_files: false
+          body: |
+            Automated draft build of VoxAI ${{ steps.ver.outputs.tag }}.
+
+            Assets: per-platform ZIPs (VST3, AU on macOS, Standalone) plus
+            best-effort native installers. macOS/Windows binaries are unsigned
+            unless signing secrets are configured — see docs/ARCHITECTURE.md
+            (Phase 5) for codesigning/notarization.
+          files: |
+            *.zip
+            *.pkg
+            Output/*.exe
