@@ -82,6 +82,16 @@ folders so a DAW rescan will find them.
 - Run Steinberg's **VST3 validator** (bundled with JUCE) or `pluginval` against
   the built `.vst3` before shipping.
 
+### Prebuilt binaries / releases
+
+- Every push is built for Windows + macOS by `.github/workflows/build.yml`; the
+  binaries are attached to each run as artifacts.
+- To produce **downloadable release assets** (per-platform ZIPs + best-effort
+  installers), push a version tag: `git tag v0.1.0 && git push origin v0.1.0`.
+  `.github/workflows/release.yml` builds all platforms and uploads them to a
+  **draft** GitHub Release (publish it when you're ready). See
+  `docs/ARCHITECTURE.md` (Phase 5) for codesigning/notarization.
+
 ---
 
 ## Project layout

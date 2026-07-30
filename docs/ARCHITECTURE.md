@@ -113,11 +113,28 @@ automatically once added to the `kKnobDefs` table.
 - Profile neural inference at the host's smallest block size before shipping;
   provide a latency/quality mode if it does not fit the CPU budget.
 
-## Phase 5 (packaging) checklist
+## Phase 5 (packaging) — what's in the repo
 
-- Windows: Inno Setup or WiX around the built `.vst3`.
-- macOS: `pkgbuild`/`productbuild`, then codesign + notarize.
-- Code-sign on both platforms (users' security prompts otherwise).
-- Licensing: start simple (offline signed license file / keygen); escalate to a
-  service only if piracy actually becomes a problem.
-- CI: the provided GitHub Actions workflow builds on Windows + macOS.
+- **Release workflow** (`.github/workflows/release.yml`): push a `v*` tag (or run
+  it manually) and it builds Windows/macOS/Linux, packages per-platform ZIPs plus
+  best-effort native installers, and uploads them to a **draft** GitHub Release.
+  Release assets are served from GitHub, which sidesteps the third-party
+  artifact-storage host that plain CI artifacts use.
+- **macOS installer** (`packaging/macos/build_pkg.sh`): `pkgbuild` that installs
+  the VST3/AU into the standard plug-in folders. Signs the package when
+  `MACOS_INSTALLER_IDENTITY` (a "Developer ID Installer" identity) is set as a
+  repo secret; otherwise produces an unsigned `.pkg`.
+- **Windows installer** (`packaging/windows/VoxAI.iss`): Inno Setup script that
+  installs the VST3 bundle into the shared VST3 folder.
+
+### Still to do for a commercial release
+
+- **Codesigning + notarization.** macOS: sign the `.component`/`.vst3` with a
+  Developer ID Application cert and notarize (`notarytool`) so Gatekeeper is
+  happy; the script signs the installer but app-level signing + notarization is
+  the remaining step. Windows: sign the installer `.exe` with `signtool` and an
+  Authenticode cert. Both need certs provided as CI secrets.
+- **Licensing:** start simple (offline signed license file / keygen); escalate to
+  a service only if piracy actually becomes a problem.
+- The base CI (`build.yml`) validates every push on Windows + macOS across both
+  RNNoise OFF/ON (minus the unsupported MSVC+RNNoise combo).
