@@ -14,6 +14,12 @@ jobs:
       matrix:
         os: [ windows-latest, macos-latest ]
         rnnoise: [ "OFF", "ON" ]
+        exclude:
+          # RNNoise's CELT sources use C99 variable-length arrays, which MSVC's
+          # C compiler does not support. Neural mode is therefore built on
+          # Linux/macOS (GCC/Clang); Windows ships the classic denoiser.
+          - os: windows-latest
+            rnnoise: "ON"
 
     steps:
       - uses: actions/checkout@v4

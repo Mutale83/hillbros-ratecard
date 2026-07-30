@@ -55,11 +55,23 @@ endif()
 # (which is guarded by HAVE_CONFIG_H — we deliberately leave it undefined).
 file(GLOB RNNOISE_SOURCES "${rnnoise_SOURCE_DIR}/src/*.c")
 
+# MSVC's C compiler does not support the C99 variable-length arrays this
+# RNNoise version relies on (e.g. `opus_val16 xx[n];`). GCC/Clang are fine.
+if(MSVC)
+    message(WARNING
+        "RNNoise (VOX_ENABLE_RNNOISE) is not supported with MSVC: its CELT "
+        "sources use C99 variable-length arrays that MSVC's C compiler "
+        "rejects. Build the neural denoiser on Linux/macOS (GCC/Clang), use "
+        "clang-cl on Windows, or build with VOX_ENABLE_RNNOISE=OFF (the "
+        "classic spectral denoiser works everywhere).")
+endif()
+
 add_library(rnnoise STATIC ${RNNOISE_SOURCES})
 target_include_directories(rnnoise PUBLIC
     "${rnnoise_SOURCE_DIR}/include"
     "${rnnoise_SOURCE_DIR}/src")
-target_compile_definitions(rnnoise PRIVATE RNNOISE_BUILD)
+# _USE_MATH_DEFINES exposes M_PI under MSVC/clang-cl (RNNoise uses it directly).
+target_compile_definitions(rnnoise PRIVATE RNNOISE_BUILD _USE_MATH_DEFINES)
 set_target_properties(rnnoise PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(NOT MSVC)

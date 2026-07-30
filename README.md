@@ -53,6 +53,12 @@ runs at 48 kHz on 480-sample frames; the plugin engages it only at that session
 rate and reports a constant latency across both engines. Sample-rate conversion so
 neural mode works at any rate is a documented follow-up (`docs/ARCHITECTURE.md`).
 
+> **Windows note:** the neural denoiser builds on **Linux/macOS (GCC/Clang)**.
+> RNNoise's CELT sources use C99 variable-length arrays that MSVC's C compiler
+> rejects, so `VOX_ENABLE_RNNOISE=ON` is unsupported under MSVC (use clang-cl, or
+> build `OFF`). The classic spectral denoiser works on every platform, so Windows
+> VST3 builds are fully functional without neural mode.
+
 ---
 
 ## Build
