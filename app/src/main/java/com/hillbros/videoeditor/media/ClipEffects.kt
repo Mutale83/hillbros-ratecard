@@ -18,7 +18,6 @@ import androidx.media3.effect.RgbFilter
 import androidx.media3.effect.RgbMatrix
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.effect.SpeedChangeEffect
-import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.TextOverlay
 import androidx.media3.effect.TextureOverlay
 import com.google.common.collect.ImmutableList
@@ -86,13 +85,14 @@ object ClipEffects {
     /** Scales every channel by [gain]; used for per-clip and music volume. */
     fun gainProcessor(gain: Float): AudioProcessor =
         ChannelMixingAudioProcessor().apply {
-            for (channelCount in 1..2) {
-                putChannelMixingMatrix(
-                    ChannelMixingMatrix
-                        .createForConstantGain(channelCount, channelCount)
-                        .scaleBy(gain),
-                )
-            }
+            // Scaled identity matrices: each input channel maps to the matching
+            // output channel at [gain], leaving the channel layout untouched.
+            putChannelMixingMatrix(
+                ChannelMixingMatrix.create(1, 1, floatArrayOf(gain)),
+            )
+            putChannelMixingMatrix(
+                ChannelMixingMatrix.create(2, 2, floatArrayOf(gain, 0f, 0f, gain)),
+            )
         }
 
     private fun filterEffect(filter: ClipFilter): Effect? = when (filter) {
@@ -128,7 +128,7 @@ object ClipEffects {
             TextPosition.BOTTOM -> -0.75f
         }
 
-        val settings = StaticOverlaySettings.Builder()
+        val settings = OverlaySettings.Builder()
             .setOverlayFrameAnchor(0f, 0f)
             .setBackgroundFrameAnchor(0f, anchorY)
             .build()
@@ -139,7 +139,7 @@ object ClipEffects {
 
     private class PositionedTextOverlay(
         private val span: SpannableString,
-        private val settings: StaticOverlaySettings,
+        private val settings: OverlaySettings,
     ) : TextOverlay() {
         override fun getText(presentationTimeUs: Long): SpannableString = span
         override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = settings

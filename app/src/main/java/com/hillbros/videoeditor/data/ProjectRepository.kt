@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -22,6 +23,8 @@ class ProjectRepository(context: Context) {
     private val file = File(appContext.filesDir, FILE_NAME)
     private val writeLock = Mutex()
 
+    private val projectListSerializer = ListSerializer(VideoProject.serializer())
+
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -34,7 +37,7 @@ class ProjectRepository(context: Context) {
     suspend fun load() = withContext(Dispatchers.IO) {
         val loaded = runCatching {
             if (!file.exists()) emptyList()
-            else json.decodeFromString<List<VideoProject>>(file.readText())
+            else json.decodeFromString(projectListSerializer, file.readText())
         }.getOrElse {
             // A corrupt library should not brick the app — start clean and
             // keep the bad file around for debugging.
@@ -67,7 +70,7 @@ class ProjectRepository(context: Context) {
                 // Write to a temp file first so an interrupted write cannot
                 // leave a half-serialised library behind.
                 val tmp = File(appContext.filesDir, "$FILE_NAME.tmp")
-                tmp.writeText(json.encodeToString(snapshot))
+                tmp.writeText(json.encodeToString(projectListSerializer, snapshot))
                 if (file.exists()) file.delete()
                 tmp.renameTo(file)
             }
