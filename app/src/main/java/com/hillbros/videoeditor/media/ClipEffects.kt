@@ -19,7 +19,7 @@ import androidx.media3.effect.RgbFilter
 import androidx.media3.effect.RgbMatrix
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.effect.SpeedChangeEffect
-import com.google.common.collect.ImmutableList
+import androidx.media3.effect.TextureOverlay
 import com.hillbros.videoeditor.data.Clip
 import com.hillbros.videoeditor.data.ClipFilter
 import com.hillbros.videoeditor.data.TextPosition
@@ -86,12 +86,8 @@ object ClipEffects {
         ChannelMixingAudioProcessor().apply {
             // Scaled identity matrices: each input channel maps to the matching
             // output channel at [gain], leaving the channel layout untouched.
-            putChannelMixingMatrix(
-                ChannelMixingMatrix.create(1, 1, floatArrayOf(gain)),
-            )
-            putChannelMixingMatrix(
-                ChannelMixingMatrix.create(2, 2, floatArrayOf(gain, 0f, 0f, gain)),
-            )
+            putChannelMixingMatrix(ChannelMixingMatrix.create(1, 1).scaleBy(gain))
+            putChannelMixingMatrix(ChannelMixingMatrix.create(2, 2).scaleBy(gain))
         }
 
     private fun filterEffect(filter: ClipFilter): Effect? = when (filter) {
@@ -133,7 +129,8 @@ object ClipEffects {
 
         canvas.drawText(spec.text, OVERLAY_WIDTH / 2f, baseline, paint)
 
-        return OverlayEffect(ImmutableList.of(BitmapOverlay.createStaticBitmapOverlay(bitmap)))
+        val overlay: TextureOverlay = BitmapOverlay.createStaticBitmapOverlay(bitmap)
+        return OverlayEffect(listOf(overlay))
     }
 
     /** A fixed 4x4 colour matrix, supplied to Media3 in column-major order. */
