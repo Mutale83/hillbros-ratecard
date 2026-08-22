@@ -70,9 +70,27 @@ class EditorViewModel(
 
     init {
         player.addListener(playerListener)
-        val project = repository.get(projectId)
+        adopt(repository.get(projectId))
+
+        // The repository loads asynchronously at startup, so a deep link (or a
+        // restore after process death) can reach the editor before the project
+        // exists in memory. Watch until it appears rather than showing an error.
+        viewModelScope.launch {
+            repository.projects.collect { projects ->
+                if (_uiState.value.project == null) {
+                    projects.firstOrNull { it.id == projectId }?.let(::adopt)
+                }
+            }
+        }
+    }
+
+    private fun adopt(project: VideoProject?) {
+        if (project == null) return
         _uiState.update {
-            it.copy(project = project, selectedClipId = project?.clips?.firstOrNull()?.id)
+            it.copy(
+                project = project,
+                selectedClipId = it.selectedClipId ?: project.clips.firstOrNull()?.id,
+            )
         }
         syncPlayerItems(resetPosition = true)
     }
