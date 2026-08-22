@@ -1,9 +1,10 @@
 package com.hillbros.videoeditor.media
 
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.style.AbsoluteSizeSpan
-import android.text.style.ForegroundColorSpan
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
 import androidx.media3.common.Effect
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.ChannelMixingAudioProcessor
@@ -12,14 +13,12 @@ import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.effect.Brightness
 import androidx.media3.effect.Contrast
 import androidx.media3.effect.HslAdjustment
+import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.OverlayEffect
-import androidx.media3.effect.OverlaySettings
 import androidx.media3.effect.RgbFilter
 import androidx.media3.effect.RgbMatrix
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.effect.SpeedChangeEffect
-import androidx.media3.effect.TextOverlay
-import androidx.media3.effect.TextureOverlay
 import com.google.common.collect.ImmutableList
 import com.hillbros.videoeditor.data.Clip
 import com.hillbros.videoeditor.data.ClipFilter
@@ -105,50 +104,45 @@ object ClipEffects {
         ClipFilter.VIVID -> HslAdjustment.Builder().adjustSaturation(40f).build()
     }
 
+    /**
+     * Renders the caption into a transparent full-frame bitmap and overlays
+     * that. Drawing the text ourselves keeps placement under our control and
+     * avoids Media3's text-overlay settings types, whose shape differs
+     * between releases.
+     */
     private fun textEffect(spec: TextOverlaySpec): Effect {
-        val span = SpannableString(spec.text).apply {
-            setSpan(
-                ForegroundColorSpan(spec.colorArgb),
-                0,
-                length,
-                Spanned.SPAN_INCLUSIVE_INCLUSIVE,
-            )
-            setSpan(
-                AbsoluteSizeSpan(spec.sizeSp.toInt().coerceAtLeast(8), false),
-                0,
-                length,
-                Spanned.SPAN_INCLUSIVE_INCLUSIVE,
-            )
+        val bitmap = Bitmap.createBitmap(OVERLAY_WIDTH, OVERLAY_HEIGHT, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = spec.colorArgb
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            // sizeSp is authored against a 1080-tall frame; scale to the
+            // overlay canvas so the caption keeps its relative size.
+            textSize = spec.sizeSp * (OVERLAY_HEIGHT / 1080f)
+            // A soft shadow keeps light text legible over bright footage.
+            setShadowLayer(textSize / 12f, 0f, textSize / 24f, Color.argb(160, 0, 0, 0))
         }
 
-        // Normalised device coordinates: y runs -1 (bottom) to +1 (top).
-        val anchorY = when (spec.position) {
-            TextPosition.TOP -> 0.75f
-            TextPosition.CENTER -> 0f
-            TextPosition.BOTTOM -> -0.75f
+        val baseline = when (spec.position) {
+            TextPosition.TOP -> OVERLAY_HEIGHT * 0.16f
+            TextPosition.CENTER -> OVERLAY_HEIGHT * 0.53f
+            TextPosition.BOTTOM -> OVERLAY_HEIGHT * 0.90f
         }
 
-        val settings = OverlaySettings.Builder()
-            .setOverlayFrameAnchor(0f, 0f)
-            .setBackgroundFrameAnchor(0f, anchorY)
-            .build()
+        canvas.drawText(spec.text, OVERLAY_WIDTH / 2f, baseline, paint)
 
-        val overlay: TextureOverlay = PositionedTextOverlay(span, settings)
-        return OverlayEffect(ImmutableList.of(overlay))
-    }
-
-    private class PositionedTextOverlay(
-        private val span: SpannableString,
-        private val settings: OverlaySettings,
-    ) : TextOverlay() {
-        override fun getText(presentationTimeUs: Long): SpannableString = span
-        override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = settings
+        return OverlayEffect(ImmutableList.of(BitmapOverlay.createStaticBitmapOverlay(bitmap)))
     }
 
     /** A fixed 4x4 colour matrix, supplied to Media3 in column-major order. */
     private class ConstantRgbMatrix(private val matrix: FloatArray) : RgbMatrix {
         override fun getMatrix(presentationTimeUs: Long, useHdr: Boolean): FloatArray = matrix
     }
+
+    private const val OVERLAY_WIDTH = 1920
+    private const val OVERLAY_HEIGHT = 1080
 
     private val SEPIA_MATRIX = floatArrayOf(
         0.393f, 0.349f, 0.272f, 0f,

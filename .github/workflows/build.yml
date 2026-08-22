@@ -30,8 +30,18 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      # --stacktrace is omitted deliberately: a Gradle stack trace buries the
+      # compiler's "e:" lines under ~150 lines of framework frames. On failure
+      # the errors are re-printed at the end of the log instead.
       - name: Assemble debug APK
-        run: ./gradlew --no-daemon --stacktrace assembleDebug
+        run: |
+          set -o pipefail
+          if ! ./gradlew --no-daemon assembleDebug 2>&1 | tee build.log; then
+            echo "::group::Compile errors"
+            grep -E '^e: ' build.log | head -n 60 || echo "(no 'e:' lines found)"
+            echo "::endgroup::"
+            exit 1
+          fi
 
       - name: Rename APK
         id: apk
@@ -69,4 +79,4 @@ jobs:
       # build that people actually install.
       - name: Assemble release APK (non-blocking)
         continue-on-error: true
-        run: ./gradlew --no-daemon --stacktrace assembleRelease
+        run: ./gradlew --no-daemon assembleRelease
